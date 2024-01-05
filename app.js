@@ -1,36 +1,47 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const crypto = require('crypto');
+const admin = require('firebase-admin');
 
 const app = express();
 const port = process.env.PORT || 3000;
-const clientSecret = 'd6e83ba9d9ce9e57a83d3177d153e818'; // Thay YOUR_CLIENT_SECRET bằng client_secret của bạn
+
+const firebaseConfig = {
+    apiKey: "AIzaSyDiZExKQZtgJdRo2wmIhWbBancM4JY7-VU",
+    authDomain: "webhook-24612.firebaseapp.com",
+    databaseURL: "https://webhook-24612-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "webhook-24612",
+    storageBucket: "webhook-24612.appspot.com",
+    messagingSenderId: "400672956398",
+    appId: "1:400672956398:web:13c88955ac2d2c2eaaf8ff",
+    measurementId: "G-1KMFW1RZYZ"
+  };
+
+// Khởi tạo Firebase Admin SDK với tệp cấu hình của bạn
+const serviceAccount = require(firebaseConfig);
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: 'webhook-24612', // Thay 'your-project-id' bằng ID dự án Firebase của bạn
+});
 
 app.use(bodyParser.json());
 
 app.post('/webhook', (req, res) => {
-  const receivedHash = req.headers['x-hanet-hash']; // Lấy giá trị hash từ header
-  const requestBody = JSON.stringify(req.body);
+  // Xử lý dữ liệu từ HANET
+  const checkinData = req.body;
 
-  // Tính toán hash từ dữ liệu và client secret
-  const computedHash = crypto
-    .createHash('md5')
-    .update(clientSecret + requestBody)
-    .digest('hex');
+  // Lưu trữ dữ liệu vào Firebase Realtime Database
+  const db = admin.database();
+  const ref = db.ref('checkinData'); // Thay 'checkinData' bằng tên node bạn muốn lưu trữ
 
-  // So sánh hash gửi từ HANET và hash tính toán
-  if (receivedHash === computedHash) {
-    // Xác thực thành công, xử lý dữ liệu ở đây
-    console.log('Dữ liệu đã được xác thực:');
-    console.log(req.body);
-
-    // Phản hồi 200 OK cho HANET
-    res.status(200).end();
-  } else {
-    // Xác thực không thành công, từ chối yêu cầu
-    console.error('Xác thực không thành công');
-    res.status(403).end();
-  }
+  ref.push(checkinData, (error) => {
+    if (error) {
+      console.error('Lỗi khi lưu trữ dữ liệu:', error);
+      res.status(500).json({ error: 'Lỗi khi lưu trữ dữ liệu' });
+    } else {
+      console.log('Dữ liệu đã được lưu trữ thành công');
+      res.status(200).end();
+    }
+  });
 });
 
 app.listen(port, () => {
